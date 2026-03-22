@@ -1,11 +1,23 @@
 # IssueLab Status - Production Dockerfile
 # Self-contained build for Railway / cloud deployment
 
+# Stage 1: Build frontend (needs devDependencies)
 FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
-# Install system dependencies
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
+COPY .npmrc package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# Stage 2: Production image
+FROM node:22-bookworm-slim
+
+WORKDIR /app
+
 RUN apt update && \
     apt --yes --no-install-recommends install \
         iputils-ping \
@@ -14,18 +26,14 @@ RUN apt update && \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Node dependencies
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
 COPY .npmrc package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# Copy application code
+# Copy app source and built frontend from build stage
 COPY . .
+COPY --from=build /app/dist ./dist
 
-# Build frontend
-RUN npm run build
-
-# Create data directory
 RUN mkdir -p ./data
 
 EXPOSE 3001
