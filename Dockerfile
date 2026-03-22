@@ -16,7 +16,7 @@ RUN apt update && \
 
 # Install Node dependencies
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
-COPY package.json package-lock.json ./
+COPY .npmrc package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Copy application code
