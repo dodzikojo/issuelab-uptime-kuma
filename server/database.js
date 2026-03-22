@@ -405,24 +405,14 @@ class Database {
                 return Array.isArray(result) ? result : (result.rows || []);
             };
 
-            const origGetRow = R.getRow.bind(R);
+            // R.getRow, R.getCell, R.getCol all fail on PG due to binding issues
+            // Override them entirely to use R.getAll (which works correctly)
             R.getRow = async function (...args) {
-                const result = await origGetRow(...args);
-                if (result !== null && result !== undefined) {
-                    return result;
-                }
-                // Fallback: use getAll and take first row
                 const rows = await R.getAll(...args);
                 return rows.length > 0 ? rows[0] : null;
             };
 
-            const origGetCell = R.getCell.bind(R);
             R.getCell = async function (...args) {
-                const result = await origGetCell(...args);
-                if (result !== null && result !== undefined) {
-                    return result;
-                }
-                // Fallback: use getAll and take first value of first row
                 const rows = await R.getAll(...args);
                 if (rows.length > 0) {
                     const firstRow = rows[0];
@@ -432,13 +422,7 @@ class Database {
                 return null;
             };
 
-            const origGetCol = R.getCol.bind(R);
             R.getCol = async function (...args) {
-                const result = await origGetCol(...args);
-                if (Array.isArray(result) && result.length > 0 && typeof result[0] !== "object") {
-                    return result;
-                }
-                // Fallback: use getAll and extract first column
                 const rows = await R.getAll(...args);
                 if (rows.length > 0) {
                     const key = Object.keys(rows[0])[0];
