@@ -23,8 +23,8 @@ async function sendNotificationList(socket) {
 
     for (let bean of list) {
         let notificationObject = bean.export();
-        notificationObject.isDefault = notificationObject.isDefault === 1;
-        notificationObject.active = notificationObject.active === 1;
+        notificationObject.isDefault = !!notificationObject.isDefault;
+        notificationObject.active = !!notificationObject.active;
         result.push(notificationObject);
     }
 

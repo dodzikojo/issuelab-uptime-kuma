@@ -537,7 +537,7 @@ let needSetup = false;
 
                 let user = await R.findOne("user", " id = ? AND active = true ", [socket.userID]);
 
-                if (user.twofa_status === 0) {
+                if (!user.twofa_status) {
                     let newSecret = genSecret();
                     let encodedSecret = base32.encode(newSecret);
 
@@ -664,7 +664,7 @@ let needSetup = false;
 
                 let user = await R.findOne("user", " id = ? AND active = true ", [socket.userID]);
 
-                if (user.twofa_status === 1) {
+                if (user.twofa_status) {
                     callback({
                         ok: true,
                         status: true,

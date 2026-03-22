@@ -1336,7 +1336,7 @@ class Monitor extends BeanModel {
     static async isActive(monitorID, active) {
         const parentActive = await Monitor.isParentActive(monitorID);
 
-        return active === 1 && parentActive;
+        return !!active && parentActive;
     }
 
     /**
@@ -2059,7 +2059,7 @@ class Monitor extends BeanModel {
         }
 
         const parentActive = await Monitor.isParentActive(parent.id);
-        return parent.active === 1 && parentActive;
+        return !!parent.active && parentActive;
     }
 
     /**
