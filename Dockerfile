@@ -41,5 +41,8 @@ EXPOSE 3001
 HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 \
     CMD curl -f http://localhost:3001/api/entry-page || exit 1
 
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "server/server.js"]
+CMD ["./docker-entrypoint.sh"]
