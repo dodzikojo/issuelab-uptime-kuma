@@ -105,6 +105,9 @@
                                                     {{ monitor.element.name }}
                                                 </p>
                                             </div>
+                                            <div v-if="monitor.element.description" class="monitor-description text-muted small mt-1">
+                                                {{ monitor.element.description }}
+                                            </div>
                                             <div class="extra-info">
                                                 <div
                                                     v-if="

@@ -86,6 +86,7 @@ class Monitor extends BeanModel {
         let obj = {
             id: this.id,
             name: this.name,
+            description: this.description,
             sendUrl: this.sendUrl,
             type: this.type,
         };
