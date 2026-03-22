@@ -59,7 +59,7 @@ router.all("/api/push/:pushToken", async (request, response) => {
             throw new Error(`Invalid ping value. Must be between 0 and ${MAX_PING_MS} ms.`);
         }
 
-        let monitor = await R.findOne("monitor", " push_token = ? AND active = 1 ", [pushToken]);
+        let monitor = await R.findOne("monitor", " push_token = ? AND active = true ", [pushToken]);
 
         if (!monitor) {
             throw new Error("Monitor not found or not active.");
@@ -378,11 +378,11 @@ router.get("/api/badge/:id/avg-response/:duration?", cache("5 minutes"), async (
         const publicAvgPing = parseInt(
             await R.getCell(
                 `
-            SELECT AVG(ping) FROM monitor_group, \`group\`, heartbeat
-            WHERE monitor_group.group_id = \`group\`.id
+            SELECT AVG(ping) FROM monitor_group, "group", heartbeat
+            WHERE monitor_group.group_id = "group".id
             AND heartbeat.time > ${sqlHourOffset}
             AND heartbeat.ping IS NOT NULL
-            AND public = 1
+            AND public = true
             AND heartbeat.monitor_id = ?
             `,
                 [-requestedDuration, requestedMonitorId]
@@ -626,10 +626,10 @@ function determineStatus(status, previousHeartbeat, maxretries, isUpsideDown, be
 async function isMonitorPublic(monitorID) {
     let publicMonitor = await R.getRow(
         `
-            SELECT monitor_group.monitor_id FROM monitor_group, \`group\`
-            WHERE monitor_group.group_id = \`group\`.id
+            SELECT monitor_group.monitor_id FROM monitor_group, "group"
+            WHERE monitor_group.group_id = "group".id
             AND monitor_group.monitor_id = ?
-            AND public = 1
+            AND public = true
         `,
         [monitorID]
     );

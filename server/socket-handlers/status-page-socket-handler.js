@@ -8,6 +8,8 @@ const apicache = require("../modules/apicache");
 const StatusPage = require("../model/status_page");
 const { UptimeKumaServer } = require("../uptime-kuma-server");
 const { Settings } = require("../settings");
+const { VALID_SEVERITIES, VALID_STATUSES } = require("../model/incident");
+const { SubscriberService } = require("../services/subscriber-service");
 
 /**
  * Validates incident data
@@ -61,6 +63,19 @@ module.exports.statusPageSocketHandler = (socket) => {
             incidentBean.active = true;
             incidentBean.status_page_id = statusPageID;
 
+            // Severity and status
+            if (incident.severity && VALID_SEVERITIES.includes(incident.severity)) {
+                incidentBean.severity = incident.severity;
+            } else if (!incidentBean.severity) {
+                incidentBean.severity = "minor";
+            }
+
+            if (incident.status && VALID_STATUSES.includes(incident.status)) {
+                incidentBean.status = incident.status;
+            } else if (!incidentBean.status) {
+                incidentBean.status = "investigating";
+            }
+
             if (incident.id) {
                 incidentBean.last_updated_date = R.isoDateTime(dayjs.utc());
             } else {
@@ -68,6 +83,27 @@ module.exports.statusPageSocketHandler = (socket) => {
             }
 
             await R.store(incidentBean);
+
+            // Notify subscribers (non-blocking) — only for new incidents
+            if (!incident.id) {
+                const statusPage = await R.findOne("status_page", " id = ? ", [statusPageID]);
+                if (statusPage && statusPage.allow_subscriptions) {
+                    const baseURL = await Settings.get("primaryBaseURL") || "http://localhost:3001";
+                    SubscriberService.notifySubscribers(
+                        statusPageID,
+                        `Incident: ${incidentBean.title}`,
+                        "incident-notification",
+                        {
+                            title: incidentBean.title,
+                            content: incidentBean.content,
+                            severity: incidentBean.severity,
+                            status: incidentBean.status,
+                        },
+                        baseURL,
+                        slug,
+                    ).catch((e) => log.error("subscriber", `Failed to notify: ${e.message}`));
+                }
+            }
 
             callback({
                 ok: true,
@@ -87,7 +123,7 @@ module.exports.statusPageSocketHandler = (socket) => {
 
             let statusPageID = await StatusPage.slugToID(slug);
 
-            await R.exec("UPDATE incident SET pin = 0 WHERE pin = 1 AND status_page_id = ? ", [statusPageID]);
+            await R.exec("UPDATE incident SET pin = false WHERE pin = true AND status_page_id = ? ", [statusPageID]);
 
             callback({
                 ok: true,
@@ -165,7 +201,14 @@ module.exports.statusPageSocketHandler = (socket) => {
             bean.content = incident.content;
             bean.style = incident.style;
             bean.pin = incident.pin !== false;
-            bean.lastUpdatedDate = R.isoDateTime(dayjs.utc());
+            bean.last_updated_date = R.isoDateTime(dayjs.utc());
+
+            if (incident.severity && VALID_SEVERITIES.includes(incident.severity)) {
+                bean.severity = incident.severity;
+            }
+            if (incident.status && VALID_STATUSES.includes(incident.status)) {
+                bean.status = incident.status;
+            }
 
             await R.store(bean);
 
@@ -250,6 +293,20 @@ module.exports.statusPageSocketHandler = (socket) => {
 
             await bean.resolve();
 
+            // Notify subscribers of resolution (non-blocking)
+            const statusPageForResolve = await R.findOne("status_page", " id = ? ", [statusPageID]);
+            if (statusPageForResolve && statusPageForResolve.allow_subscriptions) {
+                const baseURL = await Settings.get("primaryBaseURL") || "http://localhost:3001";
+                SubscriberService.notifySubscribers(
+                    statusPageID,
+                    `Resolved: ${bean.title}`,
+                    "incident-resolved",
+                    { title: bean.title, content: bean.content },
+                    baseURL,
+                    slug,
+                ).catch((e) => log.error("subscriber", `Failed to notify: ${e.message}`));
+            }
+
             callback({
                 ok: true,
                 msg: "Resolved",
@@ -261,6 +318,94 @@ module.exports.statusPageSocketHandler = (socket) => {
                 ok: false,
                 msg: error.message,
                 msgi18n: true,
+            });
+        }
+    });
+
+    socket.on("postIncidentUpdate", async (slug, incidentID, update, callback) => {
+        try {
+            checkLogin(socket);
+
+            let statusPageID = await StatusPage.slugToID(slug);
+            if (!statusPageID) {
+                callback({
+                    ok: false,
+                    msg: "slug is not found",
+                });
+                return;
+            }
+
+            let incident = await R.findOne("incident", " id = ? AND status_page_id = ? ", [incidentID, statusPageID]);
+            if (!incident) {
+                callback({
+                    ok: false,
+                    msg: "Incident not found",
+                });
+                return;
+            }
+
+            if (!update.content || update.content.trim() === "") {
+                callback({
+                    ok: false,
+                    msg: "Please input content",
+                });
+                return;
+            }
+
+            if (!update.status || !VALID_STATUSES.includes(update.status)) {
+                callback({
+                    ok: false,
+                    msg: "Invalid status",
+                });
+                return;
+            }
+
+            // Create the update record
+            let updateBean = R.dispense("incident_update");
+            updateBean.incident_id = incidentID;
+            updateBean.status = update.status;
+            updateBean.content = update.content;
+            updateBean.created_date = R.isoDateTime(dayjs.utc());
+            await R.store(updateBean);
+
+            // Update the parent incident status
+            incident.status = update.status;
+            incident.last_updated_date = R.isoDateTime(dayjs.utc());
+            if (update.status === "resolved") {
+                incident.active = false;
+                incident.pin = false;
+            }
+            await R.store(incident);
+
+            // Notify subscribers of update (non-blocking)
+            const statusPageForUpdate = await R.findOne("status_page", " id = ? ", [statusPageID]);
+            if (statusPageForUpdate && statusPageForUpdate.allow_subscriptions) {
+                const baseURL = await Settings.get("primaryBaseURL") || "http://localhost:3001";
+                const templateName = update.status === "resolved" ? "incident-resolved" : "incident-update";
+                const subject = update.status === "resolved" ? `Resolved: ${incident.title}` : `Update: ${incident.title}`;
+                SubscriberService.notifySubscribers(
+                    statusPageID,
+                    subject,
+                    templateName,
+                    {
+                        title: incident.title,
+                        status: update.status,
+                        updateContent: update.content,
+                        content: update.content,
+                    },
+                    baseURL,
+                    slug,
+                ).catch((e) => log.error("subscriber", `Failed to notify: ${e.message}`));
+            }
+
+            callback({
+                ok: true,
+                incident: await incident.toPublicJSONWithUpdates(),
+            });
+        } catch (error) {
+            callback({
+                ok: false,
+                msg: error.message,
             });
         }
     });
@@ -344,6 +489,8 @@ module.exports.statusPageSocketHandler = (socket) => {
                 throw new Error("Invalid analytics type");
             }
             statusPage.analytics_type = config.analyticsType;
+            statusPage.show_uptime = config.showUptime;
+            statusPage.allow_subscriptions = config.allowSubscriptions;
 
             await R.store(statusPage);
 
@@ -357,7 +504,7 @@ module.exports.statusPageSocketHandler = (socket) => {
             for (let group of publicGroupList) {
                 let groupBean;
                 if (group.id) {
-                    groupBean = await R.findOne("group", " id = ? AND public = 1 AND status_page_id = ? ", [
+                    groupBean = await R.findOne("group", " id = ? AND public = true AND status_page_id = ? ", [
                         group.id,
                         statusPage.id,
                     ]);
@@ -400,12 +547,12 @@ module.exports.statusPageSocketHandler = (socket) => {
             // Delete groups that are not in the list
             log.debug("socket", "Delete groups that are not in the list");
             if (groupIDList.length === 0) {
-                await R.exec("DELETE FROM `group` WHERE status_page_id = ?", [statusPage.id]);
+                await R.exec("DELETE FROM \"group\" WHERE status_page_id = ?", [statusPage.id]);
             } else {
                 const slots = groupIDList.map(() => "?").join(",");
 
                 const data = [...groupIDList, statusPage.id];
-                await R.exec(`DELETE FROM \`group\` WHERE id NOT IN (${slots}) AND status_page_id = ?`, data);
+                await R.exec(`DELETE FROM "group" WHERE id NOT IN (${slots}) AND status_page_id = ?`, data);
             }
 
             const server = UptimeKumaServer.getInstance();
@@ -501,7 +648,7 @@ module.exports.statusPageSocketHandler = (socket) => {
                 await R.exec("DELETE FROM incident WHERE status_page_id = ? ", [statusPageID]);
 
                 // Delete group
-                await R.exec("DELETE FROM `group` WHERE status_page_id = ? ", [statusPageID]);
+                await R.exec("DELETE FROM \"group\" WHERE status_page_id = ? ", [statusPageID]);
 
                 // Delete status_page
                 await R.exec("DELETE FROM status_page WHERE id = ? ", [statusPageID]);

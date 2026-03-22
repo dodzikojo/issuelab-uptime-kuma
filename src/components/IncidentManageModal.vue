@@ -34,6 +34,26 @@
                             ></textarea>
                         </div>
 
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label for="incident-severity" class="form-label">{{ $t("Severity") }}</label>
+                                <select id="incident-severity" v-model="form.severity" class="form-select">
+                                    <option value="minor">Minor</option>
+                                    <option value="major">Major</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label for="incident-status" class="form-label">{{ $t("Status") }}</label>
+                                <select id="incident-status" v-model="form.status" class="form-select">
+                                    <option value="investigating">Investigating</option>
+                                    <option value="identified">Identified</option>
+                                    <option value="monitoring">Monitoring</option>
+                                    <option value="resolved">Resolved</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label for="incident-style" class="form-label">{{ $t("Style") }}</label>
                             <select id="incident-style" v-model="form.style" class="form-select">
@@ -62,6 +82,39 @@
                             </div>
                         </div>
                     </form>
+
+                    <!-- Post Incident Update Section -->
+                    <div v-if="incidentId" class="border-top pt-3 mt-3">
+                        <h6>Post Update</h6>
+                        <div class="mb-3">
+                            <label for="update-status" class="form-label">New Status</label>
+                            <select id="update-status" v-model="updateForm.status" class="form-select">
+                                <option value="investigating">Investigating</option>
+                                <option value="identified">Identified</option>
+                                <option value="monitoring">Monitoring</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="update-content" class="form-label">Update Content</label>
+                            <textarea
+                                id="update-content"
+                                v-model="updateForm.content"
+                                class="form-control"
+                                rows="3"
+                                placeholder="Describe what changed..."
+                            ></textarea>
+                        </div>
+                        <button
+                            type="button"
+                            class="btn btn-outline-primary btn-sm"
+                            :disabled="processingUpdate"
+                            @click="postUpdate"
+                        >
+                            <span v-if="processingUpdate" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Post Update
+                        </button>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -107,13 +160,20 @@ export default {
         return {
             modal: null,
             processing: false,
+            processingUpdate: false,
             incidentId: null,
             pendingDeleteIncident: null,
             form: {
                 title: "",
                 content: "",
                 style: "warning",
+                severity: "minor",
+                status: "investigating",
                 pin: true,
+            },
+            updateForm: {
+                status: "investigating",
+                content: "",
             },
         };
     },
@@ -132,7 +192,13 @@ export default {
                 title: incident.title,
                 content: incident.content,
                 style: incident.style || "warning",
+                severity: incident.severity || "minor",
+                status: incident.status || "investigating",
                 pin: !!incident.pin,
+            };
+            this.updateForm = {
+                status: incident.status || "investigating",
+                content: "",
             };
             this.modal.show();
         },
@@ -172,6 +238,36 @@ export default {
                     this.$emit("incident-updated");
                 }
             });
+        },
+
+        /**
+         * Post an incident update
+         * @returns {void}
+         */
+        postUpdate() {
+            if (!this.updateForm.content || this.updateForm.content.trim() === "") {
+                this.$root.toastError("Please input update content");
+                return;
+            }
+
+            this.processingUpdate = true;
+
+            this.$root.getSocket().emit(
+                "postIncidentUpdate",
+                this.slug,
+                this.incidentId,
+                this.updateForm,
+                (res) => {
+                    this.processingUpdate = false;
+                    if (res.ok) {
+                        this.$root.toastRes(res);
+                        this.updateForm.content = "";
+                        this.$emit("incident-updated");
+                    } else {
+                        this.$root.toastError(res.msg);
+                    }
+                }
+            );
         },
 
         /**

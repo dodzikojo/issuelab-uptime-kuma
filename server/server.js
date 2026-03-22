@@ -358,6 +358,9 @@ let needSetup = false;
     const statusPageRouter = require("./routers/status-page-router");
     app.use(statusPageRouter);
 
+    const subscriberRouter = require("./routers/subscriber-router");
+    app.use(subscriberRouter);
+
     // Universal Route Handler, must be at the end of all express routes.
     app.get("*", async (_request, response) => {
         if (_request.originalUrl.startsWith("/upload/")) {
@@ -390,7 +393,7 @@ let needSetup = false;
 
                 log.info("auth", "Username from JWT: " + decoded.username);
 
-                let user = await R.findOne("user", " username = ? AND active = 1 ", [decoded.username]);
+                let user = await R.findOne("user", " username = ? AND active = true ", [decoded.username]);
 
                 if (user) {
                     // Check if the password changed
@@ -452,7 +455,7 @@ let needSetup = false;
             let user = await login(data.username, data.password);
 
             if (user) {
-                if (user.twofa_status === 0) {
+                if (!user.twofa_status) {
                     await afterLogin(socket, user);
 
                     log.info("auth", `Successfully logged in user ${data.username}. IP=${clientIP}`);
@@ -463,7 +466,7 @@ let needSetup = false;
                     });
                 }
 
-                if (user.twofa_status === 1 && !data.token) {
+                if (user.twofa_status && !data.token) {
                     log.info("auth", `2FA token required for user ${data.username}. IP=${clientIP}`);
 
                     callback({
@@ -477,7 +480,7 @@ let needSetup = false;
                     if (user.twofa_last_token !== data.token && verify) {
                         await afterLogin(socket, user);
 
-                        await R.exec("UPDATE `user` SET twofa_last_token = ? WHERE id = ? ", [
+                        await R.exec("UPDATE \"user\" SET twofa_last_token = ? WHERE id = ? ", [
                             data.token,
                             socket.userID,
                         ]);
@@ -532,7 +535,7 @@ let needSetup = false;
                 checkLogin(socket);
                 await doubleCheckPassword(socket, currentPassword);
 
-                let user = await R.findOne("user", " id = ? AND active = 1 ", [socket.userID]);
+                let user = await R.findOne("user", " id = ? AND active = true ", [socket.userID]);
 
                 if (user.twofa_status === 0) {
                     let newSecret = genSecret();
@@ -545,7 +548,7 @@ let needSetup = false;
 
                     let uri = `otpauth://totp/Uptime%20Kuma:${user.username}?secret=${encodedSecret}`;
 
-                    await R.exec("UPDATE `user` SET twofa_secret = ? WHERE id = ? ", [newSecret, socket.userID]);
+                    await R.exec("UPDATE \"user\" SET twofa_secret = ? WHERE id = ? ", [newSecret, socket.userID]);
 
                     callback({
                         ok: true,
@@ -577,7 +580,7 @@ let needSetup = false;
                 checkLogin(socket);
                 await doubleCheckPassword(socket, currentPassword);
 
-                await R.exec("UPDATE `user` SET twofa_status = 1 WHERE id = ? ", [socket.userID]);
+                await R.exec("UPDATE \"user\" SET twofa_status = 1 WHERE id = ? ", [socket.userID]);
 
                 log.info("auth", `Saved 2FA token. IP=${clientIP}`);
 
@@ -630,7 +633,7 @@ let needSetup = false;
                 checkLogin(socket);
                 await doubleCheckPassword(socket, currentPassword);
 
-                let user = await R.findOne("user", " id = ? AND active = 1 ", [socket.userID]);
+                let user = await R.findOne("user", " id = ? AND active = true ", [socket.userID]);
 
                 let verify = notp.totp.verify(token, user.twofa_secret, twoFAVerifyOptions);
 
@@ -659,7 +662,7 @@ let needSetup = false;
             try {
                 checkLogin(socket);
 
-                let user = await R.findOne("user", " id = ? AND active = 1 ", [socket.userID]);
+                let user = await R.findOne("user", " id = ? AND active = true ", [socket.userID]);
 
                 if (user.twofa_status === 1) {
                     callback({
@@ -690,7 +693,7 @@ let needSetup = false;
                     throw new TranslatableError("passwordTooWeak");
                 }
 
-                if ((await R.knex("user").count("id as count").first()).count !== 0) {
+                if (parseInt((await R.knex("user").count("id as count").first()).count) !== 0) {
                     throw new Error(
                         "Uptime Kuma has been initialized. If you want to run setup again, please delete the database."
                     );
@@ -1360,9 +1363,9 @@ let needSetup = false;
 
                 let count;
                 if (monitorID == null) {
-                    count = await R.count("heartbeat", "important = 1");
+                    count = await R.count("heartbeat", "important = true");
                 } else {
-                    count = await R.count("heartbeat", "monitor_id = ? AND important = 1", [monitorID]);
+                    count = await R.count("heartbeat", "monitor_id = ? AND important = true", [monitorID]);
                 }
 
                 callback({
@@ -1386,7 +1389,7 @@ let needSetup = false;
                     list = await R.find(
                         "heartbeat",
                         `
-                        important = 1
+                        important = true
                         ORDER BY time DESC
                         LIMIT ?
                         OFFSET ?
@@ -1398,7 +1401,7 @@ let needSetup = false;
                         "heartbeat",
                         `
                         monitor_id = ?
-                        AND important = 1
+                        AND important = true
                         ORDER BY time DESC
                         LIMIT ?
                         OFFSET ?
@@ -1848,7 +1851,7 @@ async function initDatabase(testMode = false) {
     // Patch the database
     await Database.patch(port, hostname);
 
-    let jwtSecretBean = await R.findOne("setting", " `key` = ? ", ["jwtSecret"]);
+    let jwtSecretBean = await R.findOne("setting", " key = ? ", ["jwtSecret"]);
 
     if (!jwtSecretBean) {
         log.info("server", "JWT secret is not found, generate one.");
@@ -1859,7 +1862,7 @@ async function initDatabase(testMode = false) {
     }
 
     // If there is no record in user table, it is a new Uptime Kuma instance, need to setup
-    if ((await R.knex("user").count("id as count").first()).count === 0) {
+    if (parseInt((await R.knex("user").count("id as count").first()).count) === 0) {
         log.info("server", "No user, need setup");
         needSetup = true;
     }
@@ -1878,7 +1881,7 @@ async function startMonitor(userID, monitorID) {
 
     log.info("manage", `Resume Monitor: ${monitorID} User ID: ${userID}`);
 
-    await R.exec("UPDATE monitor SET active = 1 WHERE id = ? AND user_id = ? ", [monitorID, userID]);
+    await R.exec("UPDATE monitor SET active = true WHERE id = ? AND user_id = ? ", [monitorID, userID]);
 
     let monitor = await R.findOne("monitor", " id = ? ", [monitorID]);
 
@@ -1911,7 +1914,7 @@ async function pauseMonitor(userID, monitorID) {
 
     log.info("manage", `Pause Monitor: ${monitorID} User ID: ${userID}`);
 
-    await R.exec("UPDATE monitor SET active = 0 WHERE id = ? AND user_id = ? ", [monitorID, userID]);
+    await R.exec("UPDATE monitor SET active = false WHERE id = ? AND user_id = ? ", [monitorID, userID]);
 
     if (monitorID in server.monitorList) {
         await server.monitorList[monitorID].stop();
@@ -1924,7 +1927,7 @@ async function pauseMonitor(userID, monitorID) {
  * @returns {Promise<void>}
  */
 async function startMonitors() {
-    let list = await R.find("monitor", " active = 1 ");
+    let list = await R.find("monitor", " active = true ");
 
     for (let monitor of list) {
         server.monitorList[monitor.id] = monitor;

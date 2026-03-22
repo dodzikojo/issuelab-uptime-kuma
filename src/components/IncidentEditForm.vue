@@ -29,6 +29,44 @@
             {{ $t("markdownSupported") }}
         </div>
 
+        <div class="row mt-3 mb-3">
+            <div class="col-auto">
+                <label class="form-label fw-bold">Severity:</label>
+                <div class="dropdown d-inline-block ms-1">
+                    <button
+                        class="btn btn-sm btn-secondary dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                    >
+                        {{ severityLabel }}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('severity', 'minor')">Minor</a></li>
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('severity', 'major')">Major</a></li>
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('severity', 'critical')">Critical</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-auto">
+                <label class="form-label fw-bold">Status:</label>
+                <div class="dropdown d-inline-block ms-1">
+                    <button
+                        class="btn btn-sm btn-secondary dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                    >
+                        {{ statusLabel }}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('status', 'investigating')">Investigating</a></li>
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('status', 'identified')">Identified</a></li>
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('status', 'monitoring')">Monitoring</a></li>
+                        <li><a class="dropdown-item" href="#" @click.prevent="updateField('status', 'resolved')">Resolved</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
         <div class="mt-3">
             <button class="btn btn-light me-2" data-testid="post-incident-button" @click="$emit('post')">
                 <font-awesome-icon icon="bullhorn" />
@@ -97,6 +135,16 @@ export default {
         },
     },
     emits: ["update:modelValue", "post", "cancel"],
+    computed: {
+        severityLabel() {
+            const labels = { minor: "Minor", major: "Major", critical: "Critical" };
+            return labels[this.modelValue.severity] || "Minor";
+        },
+        statusLabel() {
+            const labels = { investigating: "Investigating", identified: "Identified", monitoring: "Monitoring", resolved: "Resolved" };
+            return labels[this.modelValue.status] || "Investigating";
+        },
+    },
     methods: {
         updateField(field, value) {
             this.$emit("update:modelValue", {

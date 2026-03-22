@@ -3,8 +3,8 @@
         <div class="form">
             <form @submit.prevent="submit">
                 <div>
-                    <object width="64" height="64" data="/icon.svg" />
-                    <div style="font-size: 28px; font-weight: bold; margin-top: 5px">Uptime Kuma</div>
+                    <img width="64" height="64" src="/icon-192x192.png" alt="IssueLab" />
+                    <div style="font-size: 28px; font-weight: bold; margin-top: 5px">IssueLab Status</div>
                 </div>
 
                 <p class="mt-3">

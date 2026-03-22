@@ -87,8 +87,14 @@ export default {
             if (this.type === "1y") {
                 return this.$t("years", 1);
             }
-            if (this.type === "720") {
+            if (this.type === "90d") {
+                return this.$t("days", 90);
+            }
+            if (this.type === "30d") {
                 return this.$t("days", 30);
+            }
+            if (this.type === "720") {
+                return this.$t("days", 7);
             }
             return this.$t("hours", 24);
         },

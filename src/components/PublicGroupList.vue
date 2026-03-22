@@ -88,6 +88,9 @@
                                                     :status="statusOfLastHeartbeat(monitor.element.id)"
                                                 />
                                                 <Uptime v-else :monitor="monitor.element" type="24" :pill="true" />
+                                                <Uptime v-if="showUptime && !showOnlyLastHeartbeat" :monitor="monitor.element" type="720" :pill="true" />
+                                                <Uptime v-if="showUptime && !showOnlyLastHeartbeat" :monitor="monitor.element" type="30d" :pill="true" />
+                                                <Uptime v-if="showUptime && !showOnlyLastHeartbeat" :monitor="monitor.element" type="90d" :pill="true" />
                                                 <a
                                                     v-if="showLink(monitor)"
                                                     :href="monitor.element.url"
@@ -179,6 +182,11 @@ export default {
         /** Should only the last heartbeat be shown? */
         showOnlyLastHeartbeat: {
             type: Boolean,
+        },
+        /** Should uptime/SLA percentages be shown? */
+        showUptime: {
+            type: Boolean,
+            default: false,
         },
     },
     data() {

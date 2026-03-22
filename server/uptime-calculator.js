@@ -821,6 +821,13 @@ class UptimeCalculator {
     /**
      * @returns {UptimeDataResult} UptimeDataResult
      */
+    get90Day() {
+        return this.getData(90);
+    }
+
+    /**
+     * @returns {UptimeDataResult} UptimeDataResult
+     */
     get1Year() {
         return this.getData(365);
     }

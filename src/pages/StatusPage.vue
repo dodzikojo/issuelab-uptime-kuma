@@ -114,6 +114,32 @@
                     </label>
                 </div>
 
+                <!-- Show Uptime/SLA -->
+                <div class="my-3 form-check form-switch">
+                    <input
+                        id="show-uptime"
+                        v-model="config.showUptime"
+                        class="form-check-input"
+                        type="checkbox"
+                    />
+                    <label class="form-check-label" for="show-uptime">
+                        {{ $t("Show Uptime") }}
+                    </label>
+                </div>
+
+                <!-- Allow Subscriptions -->
+                <div class="my-3 form-check form-switch">
+                    <input
+                        id="allow-subscriptions"
+                        v-model="config.allowSubscriptions"
+                        class="form-check-input"
+                        type="checkbox"
+                    />
+                    <label class="form-check-label" for="allow-subscriptions">
+                        {{ $t("Allow Subscriptions") }}
+                    </label>
+                </div>
+
                 <!-- Domain Name List -->
                 <div class="my-3">
                     <label class="form-label">
@@ -424,6 +450,24 @@
                 </div>
             </template>
 
+            <!-- Upcoming Maintenance -->
+            <template v-if="upcomingMaintenanceList.length > 0">
+                <div
+                    v-for="maintenance in upcomingMaintenanceList"
+                    :key="'upcoming-' + maintenance.id"
+                    class="shadow-box alert mb-4 p-3 bg-info mt-4 position-relative"
+                    role="alert"
+                >
+                    <h4 class="alert-heading">
+                        <font-awesome-icon icon="clock" class="me-1" />
+                        {{ $t("Scheduled") }}: {{ maintenance.title }}
+                    </h4>
+                    <!-- eslint-disable-next-line vue/no-v-html-->
+                    <div v-if="maintenance.description" class="content" v-html="maintenanceHTML(maintenance.description)"></div>
+                    <MaintenanceTime :maintenance="maintenance" />
+                </div>
+            </template>
+
             <!-- Description -->
             <strong v-if="editMode">{{ $t("Description") }}:</strong>
             <Editable
@@ -493,6 +537,7 @@
                     :show-tags="config.showTags"
                     :show-certificate-expiry="config.showCertificateExpiry"
                     :show-only-last-heartbeat="config.showOnlyLastHeartbeat"
+                    :show-uptime="config.showUptime"
                 />
             </div>
 
@@ -568,10 +613,16 @@
                 ></div>
                 <!-- eslint-enable vue/no-v-html-->
 
+                <!-- Subscribe Form -->
+                <SubscribeForm
+                    v-if="config.allowSubscriptions && !enableEditMode"
+                    :slug="slug"
+                />
+
                 <p v-if="config.showPoweredBy" data-testid="powered-by">
                     {{ $t("Powered by") }}
-                    <a target="_blank" rel="noopener noreferrer" href="https://github.com/louislam/uptime-kuma">
-                        {{ $t("Uptime Kuma") }}
+                    <a target="_blank" rel="noopener noreferrer" href="https://issuelab.co/">
+                        IssueLab
                     </a>
                 </p>
 
@@ -633,6 +684,7 @@ import {
 } from "../util.ts";
 import Tag from "../components/Tag.vue";
 import VueMultiselect from "vue-multiselect";
+import SubscribeForm from "../components/SubscribeForm.vue";
 
 const toast = useToast();
 dayjs.extend(duration);
@@ -658,6 +710,7 @@ export default {
         IncidentHistory,
         IncidentManageModal,
         IncidentEditForm,
+        SubscribeForm,
     },
 
     // Leave Page for vue route change
@@ -695,12 +748,13 @@ export default {
             incident: null,
             previousIncident: null,
             showImageCropUpload: false,
-            imgDataUrl: "/icon.svg",
+            imgDataUrl: "/issuelab-logo.png",
             loadedTheme: false,
             loadedData: false,
             baseURL: "",
             clickedEditButton: false,
             maintenanceList: [],
+            upcomingMaintenanceList: [],
             lastUpdateTime: dayjs(),
             updateCountdown: null,
             updateCountdownText: null,
@@ -997,6 +1051,7 @@ export default {
                 }
 
                 this.maintenanceList = res.data.maintenanceList;
+                this.upcomingMaintenanceList = res.data.upcomingMaintenanceList || [];
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
@@ -1010,6 +1065,7 @@ export default {
 
                 this.incident = res.data.incident;
                 this.maintenanceList = res.data.maintenanceList;
+                this.upcomingMaintenanceList = res.data.upcomingMaintenanceList || [];
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
@@ -1269,7 +1325,7 @@ export default {
                 return;
             }
 
-            this.imgDataUrl = "/icon.svg";
+            this.imgDataUrl = "/issuelab-logo.png";
             this.config.icon = this.imgDataUrl;
             toast.success(this.$t("imageResetConfirmation"));
         },
@@ -1289,6 +1345,8 @@ export default {
                 title: "",
                 content: "",
                 style: "primary",
+                severity: "minor",
+                status: "investigating",
             };
         },
 

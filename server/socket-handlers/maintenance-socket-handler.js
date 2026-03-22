@@ -4,6 +4,8 @@ const { R } = require("redbean-node");
 const apicache = require("../modules/apicache");
 const { UptimeKumaServer } = require("../uptime-kuma-server");
 const Maintenance = require("../model/maintenance");
+const { SubscriberService } = require("../services/subscriber-service");
+const { Settings } = require("../settings");
 const server = UptimeKumaServer.getInstance();
 
 /**
@@ -123,6 +125,30 @@ module.exports.maintenanceSocketHandler = (socket) => {
             }
 
             apicache.clear();
+
+            // Notify subscribers of scheduled maintenance (non-blocking)
+            let maintenanceBean = server.getMaintenance(maintenanceID);
+            if (maintenanceBean) {
+                const baseURL = await Settings.get("primaryBaseURL") || "http://localhost:3001";
+                for (const statusPage of statusPages) {
+                    const sp = await R.findOne("status_page", " id = ? ", [statusPage.id]);
+                    if (sp && sp.allow_subscriptions) {
+                        SubscriberService.notifySubscribers(
+                            statusPage.id,
+                            `Scheduled Maintenance: ${maintenanceBean.title}`,
+                            "maintenance-scheduled",
+                            {
+                                title: maintenanceBean.title,
+                                description: maintenanceBean.description,
+                                startDate: maintenanceBean.start_date,
+                                endDate: maintenanceBean.end_date,
+                            },
+                            baseURL,
+                            sp.slug,
+                        ).catch((e) => log.error("subscriber", `Failed to notify: ${e.message}`));
+                    }
+                }
+            }
 
             callback({
                 ok: true,

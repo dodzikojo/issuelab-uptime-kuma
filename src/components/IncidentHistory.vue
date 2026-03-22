@@ -20,7 +20,17 @@
                 <div class="incident-style-indicator" :class="`bg-${incident.style}`"></div>
                 <div class="incident-body">
                     <div class="incident-header d-flex justify-content-between align-items-start">
-                        <h5 class="incident-title mb-0">{{ incident.title }}</h5>
+                        <div>
+                            <h5 class="incident-title mb-0">
+                                {{ incident.title }}
+                                <span v-if="incident.severity" class="badge ms-2" :class="severityClass(incident.severity)">
+                                    {{ severityLabel(incident.severity) }}
+                                </span>
+                                <span v-if="incident.status" class="badge ms-1" :class="'bg-' + statusColor(incident.status)">
+                                    {{ statusLabel(incident.status) }}
+                                </span>
+                            </h5>
+                        </div>
                         <div v-if="editMode" class="incident-actions">
                             <button
                                 v-if="incident.active"
@@ -48,6 +58,10 @@
                     </div>
                     <!-- eslint-disable-next-line vue/no-v-html-->
                     <div class="incident-content mt-1" v-html="getIncidentHTML(incident.content)"></div>
+
+                    <!-- Incident Timeline -->
+                    <IncidentTimeline v-if="incident.updates && incident.updates.length > 0" :updates="incident.updates" />
+
                     <div class="incident-meta text-muted small mt-2">
                         <div>{{ $t("createdAt", { date: datetime(incident.createdDate) }) }}</div>
                         <div v-if="incident.lastUpdatedDate">
@@ -64,9 +78,13 @@
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import datetimeMixin from "../mixins/datetime";
+import IncidentTimeline from "./IncidentTimeline.vue";
 
 export default {
     name: "IncidentHistory",
+    components: {
+        IncidentTimeline,
+    },
     mixins: [datetimeMixin],
     props: {
         incidents: {
@@ -94,6 +112,44 @@ export default {
                 return DOMPurify.sanitize(marked(content));
             }
             return "";
+        },
+
+        severityClass(severity) {
+            const classes = {
+                minor: "bg-info",
+                major: "bg-warning text-dark",
+                critical: "bg-danger",
+            };
+            return classes[severity] || "bg-secondary";
+        },
+
+        severityLabel(severity) {
+            const labels = {
+                minor: "Minor",
+                major: "Major",
+                critical: "Critical",
+            };
+            return labels[severity] || severity;
+        },
+
+        statusColor(status) {
+            const colors = {
+                investigating: "warning",
+                identified: "info",
+                monitoring: "primary",
+                resolved: "success",
+            };
+            return colors[status] || "secondary";
+        },
+
+        statusLabel(status) {
+            const labels = {
+                investigating: "Investigating",
+                identified: "Identified",
+                monitoring: "Monitoring",
+                resolved: "Resolved",
+            };
+            return labels[status] || status;
         },
     },
 };

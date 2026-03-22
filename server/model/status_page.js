@@ -270,7 +270,7 @@ class StatusPage extends BeanModel {
         // Public Group List
         const showTags = !!statusPage.show_tags;
 
-        const list = await R.find("group", " public = 1 AND status_page_id = ? ORDER BY weight ", [statusPage.id]);
+        const list = await R.find("group", " public = true AND status_page_id = ? ORDER BY weight ", [statusPage.id]);
 
         let heartbeats = [];
 
@@ -309,21 +309,25 @@ class StatusPage extends BeanModel {
     static async getStatusPageData(statusPage) {
         const config = await statusPage.toPublicJSON();
 
-        // All active incidents
-        let incidents = await R.find(
+        // All active incidents (with updates)
+        let incidentBeans = await R.find(
             "incident",
-            " pin = 1 AND active = 1 AND status_page_id = ? ORDER BY created_date DESC",
+            " pin = true AND active = true AND status_page_id = ? ORDER BY created_date DESC",
             [statusPage.id]
         );
-        incidents = incidents.map((i) => i.toPublicJSON());
+        let incidents = [];
+        for (let i of incidentBeans) {
+            incidents.push(await i.toPublicJSONWithUpdates());
+        }
 
         let maintenanceList = await StatusPage.getMaintenanceList(statusPage.id);
+        let upcomingMaintenanceList = await StatusPage.getUpcomingMaintenanceList(statusPage.id);
 
         // Public Group List
         const publicGroupList = [];
         const showTags = !!statusPage.show_tags;
 
-        const list = await R.find("group", " public = 1 AND status_page_id = ? ORDER BY weight ", [statusPage.id]);
+        const list = await R.find("group", " public = true AND status_page_id = ? ORDER BY weight ", [statusPage.id]);
 
         for (let groupBean of list) {
             let monitorGroup = await groupBean.toPublicJSON(showTags, config?.showCertificateExpiry);
@@ -336,6 +340,7 @@ class StatusPage extends BeanModel {
             incidents,
             publicGroupList,
             maintenanceList,
+            upcomingMaintenanceList,
         };
     }
 
@@ -451,6 +456,8 @@ class StatusPage extends BeanModel {
             showCertificateExpiry: !!this.show_certificate_expiry,
             showOnlyLastHeartbeat: !!this.show_only_last_heartbeat,
             rssTitle: this.rss_title,
+            showUptime: !!this.show_uptime,
+            allowSubscriptions: !!this.allow_subscriptions,
         };
     }
 
@@ -478,6 +485,8 @@ class StatusPage extends BeanModel {
             showCertificateExpiry: !!this.show_certificate_expiry,
             showOnlyLastHeartbeat: !!this.show_only_last_heartbeat,
             rssTitle: this.rss_title,
+            showUptime: !!this.show_uptime,
+            allowSubscriptions: !!this.allow_subscriptions,
         };
     }
 
@@ -542,8 +551,13 @@ class StatusPage extends BeanModel {
             }
         }
 
+        let incidentList = [];
+        for (let i of incidents) {
+            incidentList.push(await i.toPublicJSONWithUpdates());
+        }
+
         return {
-            incidents: incidents.map((i) => i.toPublicJSON()),
+            incidents: incidentList,
             total,
             nextCursor,
             hasMore,
@@ -576,6 +590,40 @@ class StatusPage extends BeanModel {
             }
 
             return publicMaintenanceList;
+        } catch (error) {
+            return [];
+        }
+    }
+
+    /**
+     * Get list of upcoming (scheduled) maintenances
+     * @param {number} statusPageId ID of status page
+     * @returns {object[]} List of upcoming maintenances
+     */
+    static async getUpcomingMaintenanceList(statusPageId) {
+        try {
+            const upcomingList = [];
+
+            let maintenanceIDList = await R.getCol(
+                `
+                SELECT DISTINCT maintenance_id
+                FROM maintenance_status_page
+                WHERE status_page_id = ?
+            `,
+                [statusPageId]
+            );
+
+            for (const maintenanceID of maintenanceIDList) {
+                let maintenance = UptimeKumaServer.getInstance().getMaintenance(maintenanceID);
+                if (maintenance) {
+                    const status = await maintenance.getStatus();
+                    if (status === "scheduled") {
+                        upcomingList.push(await maintenance.toPublicJSON());
+                    }
+                }
+            }
+
+            return upcomingList;
         } catch (error) {
             return [];
         }

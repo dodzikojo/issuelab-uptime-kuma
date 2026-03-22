@@ -356,6 +356,29 @@ class Database {
                 },
                 pool: mariadbPoolConfig,
             };
+        } else if (dbConfig.type === "postgres") {
+            config = {
+                client: "pg",
+                connection: {
+                    host: dbConfig.hostname,
+                    port: dbConfig.port,
+                    user: dbConfig.username,
+                    password: dbConfig.password,
+                    database: dbConfig.dbName,
+                    ...(dbConfig.ssl
+                        ? {
+                              ssl: {
+                                  rejectUnauthorized: true,
+                                  ...(dbConfig.ca && dbConfig.ca.trim() !== "" ? { ca: dbConfig.ca } : {}),
+                              },
+                          }
+                        : {}),
+                },
+                pool: {
+                    min: 0,
+                    max: parsedMaxPoolConnections,
+                },
+            };
         } else {
             throw new Error("Unknown Database type: " + dbConfig.type);
         }
@@ -372,6 +395,76 @@ class Database {
         const knexInstance = knex(config);
 
         R.setup(knexInstance);
+
+        // Patch RedBeanNode for PostgreSQL compatibility
+        // The pg driver returns Result objects instead of plain arrays
+        if (dbConfig.type === "postgres") {
+            const origGetAll = R.getAll.bind(R);
+            R.getAll = async function (...args) {
+                const result = await origGetAll(...args);
+                return Array.isArray(result) ? result : (result.rows || []);
+            };
+
+            const origGetRow = R.getRow.bind(R);
+            R.getRow = async function (...args) {
+                const result = await origGetRow(...args);
+                if (result !== null && result !== undefined) {
+                    return result;
+                }
+                // Fallback: use getAll and take first row
+                const rows = await R.getAll(...args);
+                return rows.length > 0 ? rows[0] : null;
+            };
+
+            const origGetCell = R.getCell.bind(R);
+            R.getCell = async function (...args) {
+                const result = await origGetCell(...args);
+                if (result !== null && result !== undefined) {
+                    return result;
+                }
+                // Fallback: use getAll and take first value of first row
+                const rows = await R.getAll(...args);
+                if (rows.length > 0) {
+                    const firstRow = rows[0];
+                    const keys = Object.keys(firstRow);
+                    return keys.length > 0 ? firstRow[keys[0]] : null;
+                }
+                return null;
+            };
+
+            const origGetCol = R.getCol.bind(R);
+            R.getCol = async function (...args) {
+                const result = await origGetCol(...args);
+                if (Array.isArray(result) && result.length > 0 && typeof result[0] !== "object") {
+                    return result;
+                }
+                // Fallback: use getAll and extract first column
+                const rows = await R.getAll(...args);
+                if (rows.length > 0) {
+                    const key = Object.keys(rows[0])[0];
+                    return rows.map(r => r[key]);
+                }
+                return [];
+            };
+
+            // Patch R.store to retrieve the auto-generated ID after insert
+            const origStore = R.store.bind(R);
+            R.store = async function (bean) {
+                const isNew = !bean.id;
+                const result = await origStore(bean);
+                if (isNew && !bean.id) {
+                    const type = bean.getType();
+                    if (type) {
+                        const seqName = `${type}_id_seq`;
+                        const row = await R.getRow(`SELECT currval('"${seqName}"') AS id`);
+                        if (row && row.id) {
+                            bean.id = parseInt(row.id);
+                        }
+                    }
+                }
+                return bean.id;
+            };
+        }
 
         if (process.env.SQL_LOG === "1") {
             R.debug(true);
@@ -393,6 +486,8 @@ class Database {
             }
         } else if (dbConfig.type.endsWith("mariadb")) {
             await this.initMariaDB();
+        } else if (dbConfig.type === "postgres") {
+            await this.initPostgres();
         }
     }
 
@@ -439,6 +534,22 @@ class Database {
             await createTables();
         } else {
             log.debug("db", "MariaDB database already exists");
+        }
+    }
+
+    /**
+     * Initialize PostgreSQL
+     * @returns {Promise<void>}
+     */
+    static async initPostgres() {
+        log.debug("db", "Checking if PostgreSQL database exists...");
+
+        let hasTable = await R.hasTable("docker_host");
+        if (!hasTable) {
+            const { createTables } = require("../db/knex_init_db");
+            await createTables();
+        } else {
+            log.debug("db", "PostgreSQL database already exists");
         }
     }
 
@@ -633,7 +744,7 @@ class Database {
 
             await R.exec("UPDATE incident SET status_page_id = ? WHERE status_page_id IS NULL", [id]);
 
-            await R.exec("UPDATE [group] SET status_page_id = ? WHERE status_page_id IS NULL", [id]);
+            await R.exec("UPDATE \"group\" SET status_page_id = ? WHERE status_page_id IS NULL", [id]);
 
             await R.exec("DELETE FROM setting WHERE type = 'statusPage'");
 
@@ -783,6 +894,8 @@ class Database {
     static sqlHourOffset() {
         if (Database.dbConfig.type === "sqlite") {
             return "DATETIME('now', ? || ' hours')";
+        } else if (Database.dbConfig.type === "postgres") {
+            return "(NOW() + MAKE_INTERVAL(hours => ?::int))";
         } else {
             return "DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? HOUR)";
         }
@@ -849,7 +962,7 @@ class Database {
         // Stop if stat_* tables are not empty
         for (let table of ["stat_minutely", "stat_hourly", "stat_daily"]) {
             let countResult = await R.getRow(`SELECT COUNT(*) AS count FROM ${table}`);
-            let count = countResult.count;
+            let count = countResult ? parseInt(countResult.count) : 0;
             if (count > 0) {
                 log.warn(
                     "db",
@@ -945,7 +1058,7 @@ class Database {
                 `
                 DELETE FROM heartbeat
                 WHERE monitor_id = ?
-                AND important = 0
+                AND important = false
                 AND time < ${sqlHourOffset}
                 AND id NOT IN (
                     SELECT id FROM ( -- written this way for Maria's support

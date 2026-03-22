@@ -46,7 +46,8 @@ class Settings {
             return v;
         }
 
-        let value = await R.getCell("SELECT `value` FROM setting WHERE `key` = ? ", [key]);
+        let rows = await R.getAll("SELECT value FROM setting WHERE key = ? ", [key]);
+        let value = rows.length > 0 ? (rows[0].value ?? null) : null;
 
         try {
             const v = JSON.parse(value);
@@ -71,7 +72,7 @@ class Settings {
      * @returns {Promise<void>}
      */
     static async set(key, value, type = null) {
-        let bean = await R.findOne("setting", " `key` = ? ", [key]);
+        let bean = await R.findOne("setting", " key = ? ", [key]);
         if (!bean) {
             bean = R.dispense("setting");
             bean.key = key;
@@ -89,7 +90,7 @@ class Settings {
      * @returns {Promise<Bean>} Settings
      */
     static async getSettings(type) {
-        let list = await R.getAll("SELECT `key`, `value` FROM setting WHERE `type` = ? ", [type]);
+        let list = await R.getAll("SELECT key, value FROM setting WHERE type = ? ", [type]);
 
         let result = {};
 
@@ -116,7 +117,7 @@ class Settings {
         let promiseList = [];
 
         for (let key of keyList) {
-            let bean = await R.findOne("setting", " `key` = ? ", [key]);
+            let bean = await R.findOne("setting", " key = ? ", [key]);
 
             if (bean == null) {
                 bean = R.dispense("setting");

@@ -1519,7 +1519,7 @@ class Monitor extends BeanModel {
                     // Filter by important = 1 to get the state transition heartbeat (e.g. UP→DOWN),
                     // not the most recent DOWN heartbeat which would be the last check before recovery.
                     const lastDownHeartbeat = await R.getRow(
-                        "SELECT time FROM heartbeat WHERE monitor_id = ? AND status = ? AND important = 1 ORDER BY time DESC LIMIT 1",
+                        "SELECT time FROM heartbeat WHERE monitor_id = ? AND status = ? AND important = true ORDER BY time DESC LIMIT 1",
                         [monitor.id, DOWN]
                     );
 
@@ -2000,7 +2000,7 @@ class Monitor extends BeanModel {
      * @returns {Promise<void>}
      */
     static async unlinkAllChildren(groupID) {
-        return await R.exec("UPDATE `monitor` SET parent = ? WHERE parent = ? ", [null, groupID]);
+        return await R.exec("UPDATE \"monitor\" SET parent = ? WHERE parent = ? ", [null, groupID]);
     }
 
     /**

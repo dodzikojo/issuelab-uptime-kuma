@@ -74,10 +74,10 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
 
         let monitorIDList = await R.getCol(
             `
-            SELECT monitor_group.monitor_id FROM monitor_group, \`group\`
-            WHERE monitor_group.group_id = \`group\`.id
-            AND public = 1
-            AND \`group\`.status_page_id = ?
+            SELECT monitor_group.monitor_id FROM monitor_group, "group"
+            WHERE monitor_group.group_id = "group".id
+            AND public = true
+            AND "group".status_page_id = ?
         `,
             [statusPageID]
         );
@@ -98,6 +98,9 @@ router.get("/api/status-page/heartbeat/:slug", cache("1 minutes"), async (reques
 
             const uptimeCalculator = await UptimeCalculator.getUptimeCalculator(monitorID);
             uptimeList[`${monitorID}_24`] = uptimeCalculator.get24Hour().uptime;
+            uptimeList[`${monitorID}_720`] = uptimeCalculator.get7Day().uptime;
+            uptimeList[`${monitorID}_30d`] = uptimeCalculator.get30Day().uptime;
+            uptimeList[`${monitorID}_90d`] = uptimeCalculator.get90Day().uptime;
         }
 
         response.json({
@@ -184,10 +187,10 @@ router.get("/api/status-page/:slug/badge", cache("5 minutes"), async (request, r
     try {
         let monitorIDList = await R.getCol(
             `
-            SELECT monitor_group.monitor_id FROM monitor_group, \`group\`
-            WHERE monitor_group.group_id = \`group\`.id
-            AND public = 1
-            AND \`group\`.status_page_id = ?
+            SELECT monitor_group.monitor_id FROM monitor_group, "group"
+            WHERE monitor_group.group_id = "group".id
+            AND public = true
+            AND "group".status_page_id = ?
         `,
             [statusPageID]
         );

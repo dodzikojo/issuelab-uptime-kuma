@@ -98,7 +98,7 @@ module.exports.apiKeySocketHandler = (socket) => {
 
             log.debug("apikeys", `Disabled Key: ${keyID} User ID: ${socket.userID}`);
 
-            await R.exec("UPDATE api_key SET active = 0 WHERE id = ? ", [keyID]);
+            await R.exec("UPDATE api_key SET active = false WHERE id = ? ", [keyID]);
 
             apicache.clear();
 
@@ -123,7 +123,7 @@ module.exports.apiKeySocketHandler = (socket) => {
 
             log.debug("apikeys", `Enabled Key: ${keyID} User ID: ${socket.userID}`);
 
-            await R.exec("UPDATE api_key SET active = 1 WHERE id = ? ", [keyID]);
+            await R.exec("UPDATE api_key SET active = true WHERE id = ? ", [keyID]);
 
             apicache.clear();
 
