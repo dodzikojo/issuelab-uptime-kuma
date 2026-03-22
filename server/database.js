@@ -440,7 +440,7 @@ class Database {
                     const type = bean.getType();
                     if (type) {
                         const seqName = `${type}_id_seq`;
-                        const row = await R.getRow(`SELECT currval('"${seqName}"') AS id`);
+                        const row = await R.getRow("SELECT currval('" + seqName + "') AS id");
                         if (row && row.id) {
                             bean.id = parseInt(row.id);
                         }
