@@ -100,6 +100,13 @@ const monitors = [
     },
 ];
 
+/**
+ * Emit a socket event and reject if the server does not acknowledge it.
+ * @param {import("socket.io-client").Socket} socket Connected socket
+ * @param {string} event Event name
+ * @param {...any} args Event arguments
+ * @returns {Promise<object>} Server acknowledgement
+ */
 function socketEmit(socket, event, ...args) {
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error(`Timeout: ${event}`)), 15000);
@@ -114,6 +121,10 @@ function socketEmit(socket, event, ...args) {
     });
 }
 
+/**
+ * Seed the configured IssueLab status page.
+ * @returns {Promise<void>}
+ */
 async function main() {
     console.log(`Connecting to ${BASE_URL}...`);
 
@@ -131,7 +142,7 @@ async function main() {
     console.log("Connected. Logging in...");
 
     // Login
-    const loginRes = await socketEmit(socket, "login", {
+    await socketEmit(socket, "login", {
         username: USERNAME,
         password: PASSWORD,
         token: "",

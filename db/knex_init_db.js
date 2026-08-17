@@ -55,7 +55,9 @@ async function createTables() {
     await knex.schema.createTable("user", (table) => {
         table.increments("id");
         const usernameCol = table.string("username", 255).notNullable().unique();
-        if (!isPostgres) { usernameCol.collate("utf8_general_ci"); }
+        if (!isPostgres) {
+            usernameCol.collate("utf8_general_ci");
+        }
         table.string("password", 255);
         table.boolean("active").notNullable().defaultTo(true);
         table.string("timezone", 150);
@@ -187,7 +189,9 @@ async function createTables() {
     await knex.schema.createTable("status_page", (table) => {
         table.increments("id");
         const slugCol = table.string("slug", 255).notNullable().unique();
-        if (!isPostgres) { slugCol.collate("utf8_general_ci"); }
+        if (!isPostgres) {
+            slugCol.collate("utf8_general_ci");
+        }
         table.string("title", 255).notNullable();
         table.text("description");
         table.string("icon", 255).notNullable();
@@ -386,7 +390,9 @@ async function createTables() {
     await knex.schema.createTable("setting", (table) => {
         table.increments("id");
         const keyCol = table.string("key", 200).notNullable().unique();
-        if (!isPostgres) { keyCol.collate("utf8_general_ci"); }
+        if (!isPostgres) {
+            keyCol.collate("utf8_general_ci");
+        }
         table.text("value");
         table.string("type", 20);
     });
@@ -402,7 +408,9 @@ async function createTables() {
             .onDelete("CASCADE")
             .onUpdate("CASCADE");
         const domainCol = table.string("domain").notNullable().unique();
-        if (!isPostgres) { domainCol.collate("utf8_general_ci"); }
+        if (!isPostgres) {
+            domainCol.collate("utf8_general_ci");
+        }
     });
 
     /*********************
