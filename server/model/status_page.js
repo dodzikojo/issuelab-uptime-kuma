@@ -511,6 +511,8 @@ class StatusPage extends BeanModel {
     getIcon() {
         if (!this.icon) {
             return "/icon.svg";
+        } else if (this.icon.startsWith("/upload/logo1.png")) {
+            return "/issuelab-logo.png";
         } else {
             return this.icon;
         }

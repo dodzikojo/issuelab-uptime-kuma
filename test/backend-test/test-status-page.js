@@ -45,6 +45,20 @@ describe("StatusPage", () => {
         });
     });
 
+    describe("getIcon()", () => {
+        test("uses the bundled IssueLab logo for the legacy uploaded logo path", () => {
+            const statusPage = { icon: "/upload/logo1.png?t=1774171158309" };
+
+            assert.strictEqual(StatusPage.prototype.getIcon.call(statusPage), "/issuelab-logo.png");
+        });
+
+        test("preserves other configured icon paths", () => {
+            const statusPage = { icon: "/custom-icon.png" };
+
+            assert.strictEqual(StatusPage.prototype.getIcon.call(statusPage), "/custom-icon.png");
+        });
+    });
+
     describe("renderRSS()", () => {
         const MOCK_FEED_URL = "http://localhost:3001/status/test";
 
