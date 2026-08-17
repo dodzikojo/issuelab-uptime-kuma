@@ -46,10 +46,10 @@ describe("StatusPage", () => {
     });
 
     describe("getIcon()", () => {
-        test("uses the bundled IssueLab logo for the legacy uploaded logo path", () => {
+        test("preserves uploaded logo paths", () => {
             const statusPage = { icon: "/upload/logo1.png?t=1774171158309" };
 
-            assert.strictEqual(StatusPage.prototype.getIcon.call(statusPage), "/issuelab-logo.png");
+            assert.strictEqual(StatusPage.prototype.getIcon.call(statusPage), statusPage.icon);
         });
 
         test("preserves other configured icon paths", () => {
