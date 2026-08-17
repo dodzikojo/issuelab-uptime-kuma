@@ -1,18 +1,21 @@
 #!/bin/sh
-# Create db-config.json from environment variables
+# Create db-config.json from environment variables without exposing credentials.
 mkdir -p data
-cat > data/db-config.json <<JSONEOF
-{
-  "type": "postgres",
-  "hostname": "${PGHOST}",
-  "port": ${PGPORT:-5432},
-  "dbName": "${PGDATABASE}",
-  "username": "${PGUSER}",
-  "password": "${PGPASSWORD}"
-}
-JSONEOF
+node <<'NODE'
+const fs = require("fs");
+
+const config = {
+    type: "postgres",
+    hostname: process.env.PGHOST,
+    port: Number(process.env.PGPORT || 5432),
+    dbName: process.env.PGDATABASE,
+    username: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+};
+
+fs.writeFileSync("data/db-config.json", JSON.stringify(config, null, 2));
+NODE
 
 echo "db-config.json created"
-cat data/db-config.json
 
 exec node server/server.js
