@@ -6,7 +6,7 @@
                     {{ statusLabel(update.status) }}
                 </span>
                 <span class="timeline-date text-muted ms-2">
-                    {{ $t("datetime", [datetimeFormat(update.createdDate)]) }}
+                    {{ datetimeFormat(update.createdDate) }}
                 </span>
             </div>
             <!-- eslint-disable-next-line vue/no-v-html -->

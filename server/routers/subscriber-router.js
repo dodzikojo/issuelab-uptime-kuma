@@ -3,7 +3,6 @@ const router = express.Router();
 const { R } = require("redbean-node");
 const { SubscriberService } = require("../services/subscriber-service");
 const { sendHttpError } = require("../util-server");
-const StatusPage = require("../model/status_page");
 const { KumaRateLimiter } = require("../rate-limiter");
 
 // Rate limiter: 5 subscribe requests per minute

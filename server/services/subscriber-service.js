@@ -6,7 +6,6 @@ const { Liquid } = require("liquidjs");
 const { log } = require("../../src/util");
 const { Settings } = require("../settings");
 const path = require("path");
-const fs = require("fs");
 
 const engine = new Liquid({
     root: path.join(__dirname, "../templates"),
